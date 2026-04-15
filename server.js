@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const crypto = require('crypto');
 const http = require('http');
 const { URL } = require('url');
