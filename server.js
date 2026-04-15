@@ -88,6 +88,15 @@ function appLayout(title, content) {
 </html>`;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function readFormBody(req) {
   return new Promise((resolve) => {
     let body = '';
@@ -155,6 +164,21 @@ function renderGroupPage(group, user) {
   const inviteEntry = Array.from(inviteTokens.entries()).find(([, groupId]) => groupId === group.id);
   const inviteLink = inviteEntry ? `${BASE_URL}/join/${inviteEntry[0]}` : 'Lien indisponible';
   const membersHtml = group.members.map((id) => `<li>${users.get(id)?.name || id}</li>`).join('');
+  const sessionsHtml =
+    group.sessions.length === 0
+      ? '<p class="muted">Aucune session enregistrée pour le moment.</p>'
+      : `<ul>${group.sessions
+          .slice()
+          .sort((a, b) => (a.playedAt < b.playedAt ? 1 : -1))
+          .map(
+            (session) => `<li>
+              <strong>${escapeHtml(session.title)}</strong> — ${escapeHtml(session.playedAt)}
+              <br /><span class="muted">MJ: ${escapeHtml(session.gm || 'Non défini')} · Durée: ${escapeHtml(session.durationMin || '?')} min</span>
+              <br /><span class="muted">Présents: ${escapeHtml(session.players || 'Non renseigné')}</span>
+              <br />${escapeHtml(session.summary || 'Aucun résumé')}
+            </li>`
+          )
+          .join('')}</ul>`;
 
   const content = `<section class="card">
     <h1>${group.name}</h1>
@@ -165,6 +189,34 @@ function renderGroupPage(group, user) {
   <section class="card">
     <h2>Membres</h2>
     <ul>${membersHtml}</ul>
+  </section>
+  <section class="card">
+    <h2>Ajouter une session JDR</h2>
+    <form method="POST" action="/groups/${group.id}/sessions">
+      <label for="playedAt">Date de la session</label>
+      <input id="playedAt" name="playedAt" type="date" required />
+
+      <label for="title">Titre</label>
+      <input id="title" name="title" required placeholder="Ex: Le temple oublié" />
+
+      <label for="gm">MJ</label>
+      <input id="gm" name="gm" placeholder="Ex: Hugo" />
+
+      <label for="durationMin">Durée (minutes)</label>
+      <input id="durationMin" name="durationMin" type="number" min="1" placeholder="240" />
+
+      <label for="summary">Résumé de l'histoire</label>
+      <input id="summary" name="summary" placeholder="Ce qu'il s'est passé pendant la session" />
+
+      <label for="players">Joueurs présents</label>
+      <input id="players" name="players" placeholder="Ex: Léa, Tom, Sarah" />
+
+      <button class="btn" type="submit">Ajouter la session</button>
+    </form>
+  </section>
+  <section class="card">
+    <h2>Historique des sessions</h2>
+    ${sessionsHtml}
   </section>`;
 
   return appLayout(`Groupe - ${group.name}`, content);
@@ -314,6 +366,49 @@ const server = http.createServer(async (req, res) => {
       }
 
       return sendHtml(res, renderGroupPage(group, user));
+    }
+
+    if (req.method === 'POST' && reqUrl.pathname.startsWith('/groups/') && reqUrl.pathname.endsWith('/sessions')) {
+      if (!requireAuth(req, res)) return;
+      const parts = reqUrl.pathname.split('/');
+      const groupId = parts[2];
+      const group = groups.get(groupId);
+
+      if (!group) {
+        const [status, html] = renderMessage('Introuvable', 'Groupe introuvable.', 404);
+        return sendHtml(res, html, status);
+      }
+
+      if (!group.members.includes(user.id)) {
+        const [status, html] = renderMessage('Accès refusé', 'Tu ne fais pas partie de ce groupe.', 403);
+        return sendHtml(res, html, status);
+      }
+
+      const form = await readFormBody(req);
+      const playedAt = String(form.get('playedAt') || '').trim();
+      const title = String(form.get('title') || '').trim();
+      const gm = String(form.get('gm') || '').trim();
+      const durationMin = String(form.get('durationMin') || '').trim();
+      const summary = String(form.get('summary') || '').trim();
+      const players = String(form.get('players') || '').trim();
+
+      if (!playedAt || !title) {
+        return redirect(res, `/groups/${groupId}`);
+      }
+
+      group.sessions.push({
+        id: crypto.randomUUID(),
+        playedAt,
+        title,
+        gm,
+        durationMin,
+        summary,
+        players,
+        createdBy: user.id,
+        createdAt: new Date().toISOString()
+      });
+
+      return redirect(res, `/groups/${groupId}`);
     }
 
     if (req.method === 'GET' && reqUrl.pathname.startsWith('/join/')) {
