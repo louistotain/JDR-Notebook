@@ -2,7 +2,7 @@
   "name": "jdr-notebook-test-site",
   "version": "1.0.0",
   "private": true,
-  "description": "Site de test très simple pour jdrnotebook.online",
+  "description": "App JDR Notebook avec login Google et groupes partageables",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
