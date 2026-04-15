@@ -1,0 +1,14 @@
+{
+  "name": "jdr-notebook-test-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App JDR Notebook avec login Google et groupes partageables",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:3001": "node server.js --port=3001"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
