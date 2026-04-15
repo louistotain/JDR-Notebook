@@ -2,7 +2,18 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 3000;
+function getCliPort() {
+  const portArg = process.argv.find((arg) => arg.startsWith('--port='));
+
+  if (!portArg) {
+    return null;
+  }
+
+  const value = Number(portArg.split('=')[1]);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+const PORT = getCliPort() || Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const server = http.createServer((req, res) => {
@@ -24,6 +35,16 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(data);
   });
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} déjà utilisé. Lancez avec PORT=3001 npm start ou npm start -- --port=3001`);
+    process.exit(1);
+  }
+
+  console.error('Erreur serveur:', error);
+  process.exit(1);
 });
 
 server.listen(PORT, HOST, () => {
